@@ -1,0 +1,96 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wann-sdk"
+version = "0.3.0"
+description = "Weight Agnostic Neural Networks SDK - Two-stage pipeline for architecture search and weight training"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "WANN SDK Contributors"}
+]
+maintainers = [
+    {name = "WANN SDK Contributors"}
+]
+keywords = [
+    "neural-networks",
+    "neuroevolution",
+    "weight-agnostic",
+    "jax",
+    "machine-learning",
+    "reinforcement-learning",
+    "architecture-search",
+    "evolution-strategies",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "jax>=0.4.0",
+    "jaxlib>=0.4.0",
+    "numpy>=1.21.0",
+    "optax>=0.1.0",
+]
+
+[project.optional-dependencies]
+brax = [
+    "brax>=0.9.0",
+]
+tensorneat = [
+    "tensorneat@git+https://github.com/EMI-Group/tensorneat.git",
+]
+vision = [
+    "tensorflow-datasets>=4.9.0",
+    "tensorflow>=2.12.0",
+]
+full = [
+    "brax>=0.9.0",
+    "tensorneat@git+https://github.com/EMI-Group/tensorneat.git",
+    "tensorflow-datasets>=4.9.0",
+    "tensorflow>=2.12.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/wann-sdk"
+Documentation = "https://github.com/your-org/wann-sdk#readme"
+Repository = "https://github.com/your-org/wann-sdk"
+Issues = "https://github.com/your-org/wann-sdk/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["wann_sdk*"]
+
+[tool.setuptools.package-data]
+wann_sdk = ["py.typed"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "W", "I", "N"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"

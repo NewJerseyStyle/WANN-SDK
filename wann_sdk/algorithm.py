@@ -1,37 +1,73 @@
 """
-Weight Agnostic Neural Networks (WANN) implementation based on TensorNEAT
+WANN Algorithm Implementation
 
-Paper: Weight Agnostic Neural Networks (Gaier & Ha, 2019)
-https://weightagnostic.github.io/
+Provides Weight Agnostic Neural Networks algorithm based on TensorNEAT.
+For full NEAT-based architecture search, install tensorneat package.
 """
 
 import jax
 import jax.numpy as jnp
-from jax import vmap
-from typing import Tuple, Callable, Optional
+from typing import Tuple, Callable, Optional, Any
 from functools import partial
 
-from tensorneat.algorithm.neat import NEAT
-from tensorneat.genome import DefaultGenome, BiasNode
-from tensorneat.common import State, ACT, AGG
-
-# Register custom activation functions
-def cos(x):
-    return jnp.cos(x)
-ACT.add_func("cos", cos)
-
-def gaussian(x):
-    return jnp.exp(-jnp.square(x) / 2.0)
-ACT.add_func("gaussian", gaussian)
-
-def step(x):
-    return jnp.heaviside(x, 0.5)
-ACT.add_func("step", step)
+# Try to import TensorNEAT components
+try:
+    from tensorneat.algorithm.neat import NEAT
+    from tensorneat.genome import DefaultGenome, BiasNode
+    from tensorneat.common import State, ACT, AGG
+    TENSORNEAT_AVAILABLE = True
+except ImportError:
+    TENSORNEAT_AVAILABLE = False
+    NEAT = object
+    DefaultGenome = object
+    State = None
 
 
-class WANNGenome(DefaultGenome):
+def _register_activations():
+    """Register custom activation functions if TensorNEAT is available."""
+    if not TENSORNEAT_AVAILABLE:
+        return
+
+    def cos(x):
+        return jnp.cos(x)
+
+    def gaussian(x):
+        return jnp.exp(-jnp.square(x) / 2.0)
+
+    def step(x):
+        return jnp.heaviside(x, 0.5)
+
+    try:
+        ACT.add_func("cos", cos)
+        ACT.add_func("gaussian", gaussian)
+        ACT.add_func("step", step)
+    except Exception:
+        pass  # Already registered
+
+
+_register_activations()
+
+
+class WANNGenome(DefaultGenome if TENSORNEAT_AVAILABLE else object):
     """
     WANN-specific genome that evaluates networks with shared weights.
+
+    This extends the DefaultGenome from TensorNEAT to support weight-agnostic
+    evaluation where all connections share the same weight value.
+
+    Args:
+        num_inputs: Number of input nodes
+        num_outputs: Number of output nodes
+        weight_range: Range for weight sampling (min, max)
+        weight_samples: Fixed weight values to test during evaluation
+        **kwargs: Additional arguments passed to DefaultGenome
+
+    Example:
+        >>> genome = WANNGenome(
+        ...     num_inputs=24,
+        ...     num_outputs=4,
+        ...     weight_samples=jnp.array([-1.0, 0.0, 1.0]),
+        ... )
     """
 
     def __init__(
@@ -39,19 +75,18 @@ class WANNGenome(DefaultGenome):
         num_inputs: int,
         num_outputs: int,
         weight_range: Tuple[float, float] = (-2.0, 2.0),
-        weight_samples: jnp.ndarray = jnp.array([-2.0, -1.0, -0.5, 0.5, 1.0, 2.0]),
+        weight_samples: Optional[jnp.ndarray] = None,
         **kwargs
     ):
-        """
-        Initialize WANN genome.
+        if not TENSORNEAT_AVAILABLE:
+            raise ImportError(
+                "TensorNEAT is required for WANNGenome. "
+                "Install with: pip install wann-sdk[tensorneat]"
+            )
 
-        Args:
-            num_inputs: Number of input nodes
-            num_outputs: Number of output nodes
-            weight_range: Range for weight sampling (min, max)
-            weight_samples: Fixed weight values to test during evaluation
-            **kwargs: Additional arguments passed to DefaultGenome
-        """
+        if weight_samples is None:
+            weight_samples = jnp.array([-2.0, -1.0, -0.5, 0.5, 1.0, 2.0])
+
         super().__init__(
             num_inputs=num_inputs,
             num_outputs=num_outputs,
@@ -61,9 +96,9 @@ class WANNGenome(DefaultGenome):
         self.weight_samples = weight_samples
         self.num_weight_samples = len(weight_samples)
 
-    def transform(self, state: State, nodes: jnp.ndarray, conns: jnp.ndarray) -> Tuple:
+    def transform(self, state: Any, nodes: jnp.ndarray, conns: jnp.ndarray) -> Tuple:
         """
-        Transform method - uses DefaultGenome's implementation.
+        Transform genome representation for forward pass.
 
         Args:
             state: Algorithm state
@@ -71,7 +106,7 @@ class WANNGenome(DefaultGenome):
             conns: Connection array
 
         Returns:
-            (seqs, nodes, conns, u_conns) tuple
+            Tuple of (seqs, nodes, conns, u_conns)
         """
         from tensorneat.genome.utils import unflatten_conns
         from tensorneat.common import topological_sort, I_INF
@@ -84,7 +119,7 @@ class WANNGenome(DefaultGenome):
 
     def forward_with_shared_weight(
         self,
-        state: State,
+        state: Any,
         transformed: Tuple,
         x: jnp.ndarray,
         shared_weight: float
@@ -112,7 +147,7 @@ class WANNGenome(DefaultGenome):
     def evaluate_with_shared_weights(
         self,
         transformed: Tuple,
-        state: State,
+        state: Any,
         inputs: jnp.ndarray,
         fitness_fn: Callable,
         weight_samples: Optional[jnp.ndarray] = None
@@ -125,7 +160,7 @@ class WANNGenome(DefaultGenome):
             state: Algorithm state
             inputs: Input samples for evaluation
             fitness_fn: Function to compute fitness from predictions
-            weight_samples: Weight values to test (uses self.weight_samples if None)
+            weight_samples: Weight values to test
 
         Returns:
             mean_fitness: Average fitness across all weight samples
@@ -135,6 +170,8 @@ class WANNGenome(DefaultGenome):
         if weight_samples is None:
             weight_samples = self.weight_samples
 
+        from jax import vmap
+
         def evaluate_single_weight(weight):
             forward_fn = partial(
                 self.forward_with_shared_weight,
@@ -142,7 +179,6 @@ class WANNGenome(DefaultGenome):
                 state=state,
                 shared_weight=weight
             )
-
             predictions = vmap(forward_fn)(inputs)
             fitness = fitness_fn(predictions)
             return fitness
@@ -155,12 +191,26 @@ class WANNGenome(DefaultGenome):
         return mean_fitness, max_fitness, fitness_per_weight
 
 
-class WANN(NEAT):
+class WANN(NEAT if TENSORNEAT_AVAILABLE else object):
     """
     Weight Agnostic Neural Networks algorithm.
 
-    This extends NEAT to search for architectures that perform well
+    Extends NEAT to search for architectures that perform well
     with random/shared weights rather than optimized weights.
+
+    Args:
+        pop_size: Population size
+        species_size: Target number of species
+        survival_threshold: Fraction of population to survive
+        compatibility_threshold: Threshold for speciation
+        genome: WANN genome instance
+        complexity_weight: Weight for complexity penalty (0-1)
+        use_max_fitness: If True, rank by max fitness instead of mean
+        **kwargs: Additional arguments passed to NEAT
+
+    Example:
+        >>> genome = WANNGenome(num_inputs=24, num_outputs=4)
+        >>> wann = WANN(pop_size=1000, genome=genome)
     """
 
     def __init__(
@@ -174,19 +224,12 @@ class WANN(NEAT):
         use_max_fitness: bool = False,
         **kwargs
     ):
-        """
-        Initialize WANN algorithm.
+        if not TENSORNEAT_AVAILABLE:
+            raise ImportError(
+                "TensorNEAT is required for WANN. "
+                "Install with: pip install wann-sdk[tensorneat]"
+            )
 
-        Args:
-            pop_size: Population size
-            species_size: Target number of species
-            survival_threshold: Fraction of population to survive
-            compatibility_threshold: Threshold for speciation
-            genome: WANN genome instance (uses default if None)
-            complexity_weight: Weight for complexity penalty (0-1)
-            use_max_fitness: If True, rank by max fitness instead of mean
-            **kwargs: Additional arguments passed to NEAT
-        """
         if genome is None:
             genome = WANNGenome(
                 num_inputs=1,

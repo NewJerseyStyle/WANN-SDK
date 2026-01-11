@@ -13,9 +13,28 @@ This project originated as a fork of a 2019 research collaboration with [Arthur]
 
 Unlike traditional neural networks where the focus is on optimizing specific weight values, and traditional architecture search requires weight optimization during training. Our experimental method was using shared weight to archtiecture search and optimize weight after fixing the network **topology**. We adapt **Weight Agnostic Neural Networks** to find architectures that can perform tasks without optimize weight to compare and find the **best topology**.
 
-Our SDK uses a two-stage approach:
-1.  **Search Stage:** Uses a NEAT-based WANN evolutionary algorithm to find robust topologies with fixed/shared weights.
-2.  **Fine-tuning Stage:** Optimizes the weights for the discovered architecture to reach peak performance.
+## Two-Stage Pipeline
+
+WANN SDK implements the standard Weight Agnostic Neural Network methodology:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Stage 1: Architecture Search                                       │
+│  ────────────────────────────────────────────────────────────────── │
+│  • Evolve network topology (nodes, connections, activations)        │
+│  • Evaluate with SHARED weights across all connections              │
+│  • Find architectures that work regardless of weight value          │
+│  • Uses NEAT-like neuroevolution                                    │
+└─────────────────────────────────────────────────────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│  Stage 2: Weight Training                                           │
+│  ────────────────────────────────────────────────────────────────── │
+│  • Train INDIVIDUAL weights on found architecture                   │
+│  • Supports: ES, SGD, Adam, AdamW optimizers                        │
+│  • Export to PyTorch for downstream fine-tuning                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
 ## ✨ Key Features
 
@@ -24,59 +43,93 @@ Our SDK uses a two-stage approach:
 -   **Two-Stage Pipeline:** Decoupled architecture search and weight optimization.
 
 ## 🚀 Getting Started
-
-### Prerequisites
-
-Ensure you have a modern Python environment. For GPU acceleration, ensure your CUDA drivers are up to date.
-
 ### Installation
 
 ```bash
-# 1. Install JAX (CPU version)
-pip install jax 
-
-# OR 1. Install JAX (GPU version - adjust cuda version as needed)
-# pip install "jax[cuda12]"
-
-# 2. Install dependencies and TensorNEAT
-pip install git+https://github.com/EMI-Group/tensorneat.git gymnas brax
+pip install git+https://github.dev/NewJerseyStyle/WANN-SDK
+# not uploaded to pypi yet
+# pip install wann-sdk
 ```
 
-### Running the Example (Bipedal/Humanoid)
+### Optional Dependencies
 
-We provide a comprehensive example using the `Bipedal` environment in Brax. You can run the pipeline in stages or all at once.
-
-#### Example 1: Step-by-Step Execution
-
-1.  **Search:** Find the best neural architecture.
-    ```bash
-    python example/wann_bipedal.py --mode v2 --stage search
-    ```
-2.  **Train:** Optimize the weights of the discovered architecture.
-    ```bash
-    python example/wann_bipedal.py --mode v2 --stage train
-    ```
-3.  **Evaluate:** Test the performance of your trained model.
-    ```bash
-    python example/wann_bipedal.py --mode v2 --stage eval
-    ```
-
-#### Example 2: Full Pipeline
-To run everything from scratch in one go:
 ```bash
-python example/wann_bipedal.py --mode v2 --stage full
+pip install wann-sdk[brax]      # For Brax physics environments
+pip install wann-sdk[gymnax]    # For Gymnax classic control
+pip install wann-sdk[vision]    # For image datasets
+pip install wann-sdk[full]      # Everything
 ```
+
+### Full Pipeline Example
+
+```python
+from wann_sdk import (
+    # Stage 1
+    ArchitectureSearch, SearchConfig,
+    # Stage 2
+    WeightTrainer, WeightTrainerConfig,
+    # Problem
+    SupervisedProblem,
+    # Export
+    export_to_pytorch,
+)
+
+# Define your problem
+problem = SupervisedProblem(x_train, y_train, loss_fn='cross_entropy')
+
+# ============================================
+# Stage 1: Architecture Search
+# ============================================
+search = ArchitectureSearch(
+    problem,
+    SearchConfig(
+        max_nodes=30,                              # Search space
+        max_connections=100,
+        activation_options=['tanh', 'relu', 'sigmoid'],
+        weight_values=[-2, -1, -0.5, 0.5, 1, 2],  # Shared weights for eval
+    )
+)
+genome = search.run(generations=100)
+
+# ============================================
+# Stage 2: Weight Training
+# ============================================
+trainer = WeightTrainer(
+    genome, problem,
+    WeightTrainerConfig(
+        optimizer='adamw',       # 'es', 'sgd', 'adam', 'adamw'
+        learning_rate=0.001,
+        weight_decay=0.01,
+    )
+)
+trainer.fit(epochs=100)
+
+# Get trained network
+network = trainer.get_network()
+predictions = network(x_test)
+
+# ============================================
+# Export to PyTorch (Optional)
+# ============================================
+export_to_pytorch(genome, trainer.get_weights(), 'wann_model.py')
+```
+
+## API Reference
+- [Detailed API reference](/APIs.md)
 
 ## 📜 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## 🙏 Related Work
 
--   **Arthur:** For the original 2019 research collaboration.
--   **EMI Group:** For the excellent [TensorNEAT](https://github.com/EMI-Group/tensorneat) foundation.
+- For the original 2019 research collaboration with Arthur (2019).
+- [Weight Agnostic Neural Networks](https://weightagnostic.github.io/) (Gaier & Ha, 2019)
+- [TensorNEAT](https://github.com/EMI-Group/tensorneat) - NEAT algorithms in JAX
+- [Brax](https://github.com/google/brax) - Physics simulation in JAX
+- [Gymnax](https://github.com/RobertTLange/gymnax) - Classic RL environments in JAX
 
-## Citing WANN SDK, WANN, TensorNEAT
+## 📋 Citing WANN SDK, WANN, TensorNEAT
 If you use this SDK in your research, we recommend you to cite both this repository and the related works.
 ```
 @software{wann_sdk_2025,
