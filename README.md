@@ -7,7 +7,7 @@
 
 **WANN SDK** is a high-performance framework for evolving Artificial Neural Networks with **Weight Agnostic Neural Networks (WANN)** method. Built on top of [TensorNEAT](https://github.com/EMI-Group/tensorneat), this toolkit provides a streamlined API for architecture search and weight optimization, leveraging JAX for massive parallelism.
 
-This project originated as a fork of a 2019 research collaboration with [Arthur](https://github.com/rlalpha), modernized to support modern hardware acceleration and the Brax physics engine.
+This project originated as a fork of a 2019 research collaboration with [Arthur](https://github.com/rlalpha), modernized to support modern hardware acceleration and the Brax physics engine. Also added weight optimization (however be aware that the topology found by WANN does not guarantee it is trainable, it can be insensitive to weight optimization as it is Weight Agnostic).
 
 ## 🧠 What is WANN?
 
