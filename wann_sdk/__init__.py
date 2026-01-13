@@ -94,6 +94,15 @@ from .algorithm import (
     WANN,
 )
 
+# === Distributed (Ray) ===
+from .distributed import (
+    DistributedSearch,
+    init_ray,
+    shutdown_ray,
+    get_cluster_info,
+    wait_for_workers,
+)
+
 # === Deprecated: Old MLP-based API ===
 # Use ArchitectureSearch + WeightTrainer instead
 from .trainer import Trainer, TrainerConfig
@@ -148,6 +157,13 @@ __all__ = [
     # TensorNEAT (Advanced)
     "WANNGenome",
     "WANN",
+
+    # Distributed (Ray)
+    "DistributedSearch",
+    "init_ray",
+    "shutdown_ray",
+    "get_cluster_info",
+    "wait_for_workers",
 
     # Deprecated
     "Trainer",
