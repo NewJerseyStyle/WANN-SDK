@@ -9,7 +9,7 @@ WANN SDK provides a unified interface for optimizers from multiple sources:
 | Source | Type | Examples | Dependencies |
 |--------|------|----------|--------------|
 | **Built-in** | Evolutionary | ES, OpenES, PEPG | None |
-| **JAXOpt-style** | Gradient | Adam, AdamW, SGD, RMSProp, L-BFGS | None (pure JAX) |
+| **Optax** | Gradient | Adam, AdamW, SGD, RMSProp, Lion, Lamb | optax (included) |
 | **Nevergrad** | Evolutionary | CMA-ES, DE, PSO, NGOpt | `pip install nevergrad` |
 
 ## Quick Start
@@ -124,6 +124,33 @@ opt = LBFGS(
 )
 ```
 **Best for:** Small networks, when you can afford full-batch gradients.
+
+#### Lion
+```python
+from wann_sdk.optimizers import Lion
+
+opt = Lion(
+    learning_rate=0.0001,
+    beta1=0.9,            # Momentum decay
+    beta2=0.99,           # Velocity decay
+    weight_decay=0.0,
+)
+```
+**Best for:** Memory-efficient alternative to Adam, discovered through program search.
+
+#### Lamb
+```python
+from wann_sdk.optimizers import Lamb
+
+opt = Lamb(
+    learning_rate=0.001,
+    beta1=0.9,
+    beta2=0.999,
+    eps=1e-6,
+    weight_decay=0.0,
+)
+```
+**Best for:** Large batch training with layer-wise learning rate adaptation.
 
 ### Evolutionary Optimizers
 
@@ -346,9 +373,27 @@ config = WeightTrainerConfig(
 
 | Optimizer | Dependency | Install |
 |-----------|------------|---------|
-| Adam, AdamW, SGD, etc. | None | Built-in |
+| Adam, AdamW, SGD, RMSProp, AdaGrad, Lion, Lamb | optax | Included in WANN SDK |
 | ES, OpenES, PEPG | None | Built-in |
 | CMA, DE, PSO, NGOpt | nevergrad | `pip install nevergrad` |
-| L-BFGS (full) | jaxopt | `pip install jaxopt` |
+| L-BFGS (full second-order) | jaxopt | `pip install jaxopt` |
 
 Optimizers gracefully degrade if dependencies are missing - you'll get a helpful error message suggesting the install command.
+
+## Technical Notes
+
+### Optax Integration
+
+The gradient-based optimizers use [Optax](https://github.com/deepmind/optax), DeepMind's gradient transformation library for JAX. Optax is the standard choice for gradient optimization in the JAX ecosystem and provides:
+
+- Composable gradient transformations
+- Efficient state management
+- Wide range of well-tested algorithms
+
+### Nevergrad Integration
+
+Evolutionary optimizers wrap [Nevergrad](https://github.com/facebookresearch/nevergrad), Facebook's gradient-free optimization library. Benefits include:
+
+- State-of-the-art evolutionary algorithms
+- Automatic algorithm selection (NGOpt)
+- Handles non-differentiable objectives

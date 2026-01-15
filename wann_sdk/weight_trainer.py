@@ -2,7 +2,12 @@
 Weight Trainer for WANN SDK (Stage 2)
 
 Trains individual weights on architectures found by ArchitectureSearch.
-Supports both Evolution Strategies and gradient-based optimizers (SGD, AdamW).
+Supports both Evolution Strategies and gradient-based optimizers.
+
+Optimizer Sources:
+- Built-in: ES (Evolution Strategies)
+- Optax: Adam, AdamW, SGD, RMSProp, AdaGrad, Lion, Lamb, LBFGS
+- Nevergrad: CMA-ES, DE, PSO, NGOpt (requires: pip install nevergrad)
 
 For gradient-based training, non-differentiable activations (step, abs) are
 automatically replaced with smooth approximations to enable gradient flow.
@@ -13,7 +18,6 @@ import jax.numpy as jnp
 from jax import grad, jit, vmap
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from dataclasses import dataclass, field
-from enum import Enum
 import pickle
 from pathlib import Path
 import time
@@ -27,14 +31,14 @@ from .activation_approx import (
     is_non_differentiable,
     set_cache_dir,
 )
-
-
-class Optimizer(Enum):
-    """Available optimizers for weight training."""
-    ES = "es"           # Evolution Strategies
-    SGD = "sgd"         # Stochastic Gradient Descent
-    ADAM = "adam"       # Adam optimizer
-    ADAMW = "adamw"     # AdamW (Adam with weight decay)
+from .optimizers import (
+    BaseOptimizer,
+    OptimizerState,
+    create_optimizer,
+    get_optimizer,
+    is_gradient_based,
+    list_optimizers,
+)
 
 
 @dataclass
@@ -43,14 +47,18 @@ class WeightTrainerConfig:
     Configuration for Stage 2 weight training.
 
     Args:
-        optimizer: Optimizer to use ('es', 'sgd', 'adam', 'adamw')
-        learning_rate: Learning rate for optimization
+        optimizer: Optimizer name (str) or instance (BaseOptimizer).
+            Available optimizers (use list_optimizers() to see all):
+            - Gradient: 'adam', 'adamw', 'sgd', 'rmsprop', 'adagrad', 'lbfgs'
+            - Evolutionary: 'es', 'cma', 'de', 'pso', 'ngopt'
+        learning_rate: Learning rate (used when optimizer is string)
+        optimizer_kwargs: Additional kwargs passed to optimizer constructor
 
-        # ES-specific
+        # Legacy ES parameters (for backward compatibility)
         pop_size: Population size (ES only)
         noise_std: Noise standard deviation (ES only)
 
-        # Gradient-based specific
+        # Legacy gradient parameters (for backward compatibility)
         batch_size: Batch size for gradient computation
         weight_decay: Weight decay for AdamW
         beta1: Adam beta1 parameter
@@ -66,21 +74,28 @@ class WeightTrainerConfig:
         verbose: Print progress
 
     Example:
+        >>> # Simple string-based usage
+        >>> config = WeightTrainerConfig(optimizer='adam', learning_rate=0.001)
+        >>>
+        >>> # With optimizer kwargs
         >>> config = WeightTrainerConfig(
-        ...     optimizer='adamw',
-        ...     learning_rate=0.001,
-        ...     weight_decay=0.01,
-        ...     approx_method='kan',  # Use KAN for smooth gradients
+        ...     optimizer='cma',
+        ...     optimizer_kwargs={'population_size': 32}
         ... )
+        >>>
+        >>> # With optimizer instance (full IDE support)
+        >>> from wann_sdk.optimizers import LBFGS
+        >>> config = WeightTrainerConfig(optimizer=LBFGS(max_iterations=50))
     """
-    optimizer: str = 'es'
+    optimizer: Union[str, BaseOptimizer] = 'adam'
     learning_rate: float = 0.01
+    optimizer_kwargs: Dict[str, Any] = field(default_factory=dict)
 
-    # ES parameters
+    # Legacy ES parameters (backward compatibility)
     pop_size: int = 64
     noise_std: float = 0.1
 
-    # Gradient-based parameters
+    # Legacy gradient parameters (backward compatibility)
     batch_size: Optional[int] = None
     weight_decay: float = 0.01
     beta1: float = 0.9
@@ -382,24 +397,49 @@ class WeightTrainer:
         self._using_approx = False
 
     def _init_optimizer(self):
-        """Initialize optimizer state."""
-        opt = self.config.optimizer.lower()
+        """Initialize optimizer using the new optimizer system."""
+        config = self.config
 
-        if opt == 'es':
-            # ES doesn't need optimizer state
-            self.opt_state = None
-        elif opt == 'sgd':
-            # Momentum state
-            self.opt_state = {'velocity': jnp.zeros_like(self.network.weights)}
-        elif opt in ['adam', 'adamw']:
-            # Adam state
-            self.opt_state = {
-                'm': jnp.zeros_like(self.network.weights),
-                'v': jnp.zeros_like(self.network.weights),
-                't': 0,
-            }
+        # Build optimizer kwargs from config (for backward compatibility)
+        optimizer_kwargs = dict(config.optimizer_kwargs)
+
+        if isinstance(config.optimizer, str):
+            opt_name = config.optimizer.lower()
+
+            # Add learning_rate if not specified
+            if 'learning_rate' not in optimizer_kwargs:
+                optimizer_kwargs['learning_rate'] = config.learning_rate
+
+            # Legacy parameter mapping for backward compatibility
+            if opt_name == 'es':
+                if 'population_size' not in optimizer_kwargs:
+                    optimizer_kwargs['population_size'] = config.pop_size
+                if 'noise_std' not in optimizer_kwargs:
+                    optimizer_kwargs['noise_std'] = config.noise_std
+            elif opt_name == 'adamw':
+                if 'weight_decay' not in optimizer_kwargs:
+                    optimizer_kwargs['weight_decay'] = config.weight_decay
+                if 'beta1' not in optimizer_kwargs:
+                    optimizer_kwargs['beta1'] = config.beta1
+                if 'beta2' not in optimizer_kwargs:
+                    optimizer_kwargs['beta2'] = config.beta2
+            elif opt_name == 'adam':
+                if 'beta1' not in optimizer_kwargs:
+                    optimizer_kwargs['beta1'] = config.beta1
+                if 'beta2' not in optimizer_kwargs:
+                    optimizer_kwargs['beta2'] = config.beta2
+
+            # Create optimizer from name
+            self.optimizer = create_optimizer(opt_name, **optimizer_kwargs)
         else:
-            raise ValueError(f"Unknown optimizer: {opt}")
+            # Use provided optimizer instance
+            self.optimizer = config.optimizer
+
+        # Initialize optimizer state with network weights
+        self.opt_state = self.optimizer.init_state(self.network.weights)
+
+        # Check if gradient-based for activation approximation
+        self._is_gradient_optimizer = is_gradient_based(self.optimizer)
 
     def _loss_fn(self, weights: jnp.ndarray, key: jax.random.PRNGKey) -> jnp.ndarray:
         """Compute differentiable loss for gradient-based training."""
@@ -461,46 +501,15 @@ class WeightTrainer:
         return new_weights, metrics
 
     def _gradient_step(self, key: jax.random.PRNGKey) -> Tuple[jnp.ndarray, Dict[str, float]]:
-        """Gradient-based update step (SGD, Adam, AdamW)."""
-        weights = self.network.weights
-        opt = self.config.optimizer.lower()
+        """Gradient-based update step using new optimizer system."""
+        weights = self.opt_state.params
 
         # Compute gradient
         loss, grads = jax.value_and_grad(self._loss_fn)(weights, key)
 
-        if opt == 'sgd':
-            # SGD with momentum
-            momentum = 0.9
-            self.opt_state['velocity'] = (
-                momentum * self.opt_state['velocity'] - self.config.learning_rate * grads
-            )
-            new_weights = weights + self.opt_state['velocity']
-
-        elif opt in ['adam', 'adamw']:
-            # Adam / AdamW
-            self.opt_state['t'] += 1
-            t = self.opt_state['t']
-
-            self.opt_state['m'] = (
-                self.config.beta1 * self.opt_state['m'] + (1 - self.config.beta1) * grads
-            )
-            self.opt_state['v'] = (
-                self.config.beta2 * self.opt_state['v'] + (1 - self.config.beta2) * grads ** 2
-            )
-
-            # Bias correction
-            m_hat = self.opt_state['m'] / (1 - self.config.beta1 ** t)
-            v_hat = self.opt_state['v'] / (1 - self.config.beta2 ** t)
-
-            # Update
-            new_weights = weights - self.config.learning_rate * m_hat / (jnp.sqrt(v_hat) + self.config.eps)
-
-            # Weight decay (AdamW)
-            if opt == 'adamw':
-                new_weights = new_weights - self.config.learning_rate * self.config.weight_decay * weights
-
-        else:
-            raise ValueError(f"Unknown optimizer: {opt}")
+        # Update using optimizer
+        self.opt_state = self.optimizer.update(self.opt_state, grads=grads)
+        new_weights = self.opt_state.params
 
         # Evaluate fitness with new weights
         eval_fn = lambda x: self.network.forward(new_weights, x)
@@ -509,6 +518,33 @@ class WeightTrainer:
         metrics = {
             'loss': float(loss),
             'fitness': float(fitness),
+        }
+
+        return new_weights, metrics
+
+    def _evolutionary_step(self, key: jax.random.PRNGKey) -> Tuple[jnp.ndarray, Dict[str, float]]:
+        """Evolutionary update step using new optimizer system."""
+        # Create loss function for evolutionary optimizer
+        def loss_fn(weights):
+            network_fn = lambda x: self.network.forward(weights, x)
+            # Return negative fitness (optimizer minimizes, we want to maximize)
+            return -self.problem.evaluate(network_fn, key)
+
+        # Update using optimizer
+        self.opt_state = self.optimizer.update(
+            self.opt_state,
+            loss_fn=loss_fn,
+            key=key,
+        )
+        new_weights = self.opt_state.params
+
+        # Compute metrics
+        eval_fn = lambda x: self.network.forward(new_weights, x)
+        fitness = self.problem.evaluate(eval_fn, key)
+
+        metrics = {
+            'mean_fitness': float(fitness),
+            'max_fitness': float(fitness),
         }
 
         return new_weights, metrics
@@ -526,19 +562,24 @@ class WeightTrainer:
             log_interval: How often to log progress
 
         Returns:
-            Training results dictionary
+            Training results dictionary with 'best_fitness', 'epochs', 'history'
         """
         self.problem.setup()
-        opt = self.config.optimizer.lower()
+
+        # Get optimizer name for display
+        if isinstance(self.config.optimizer, str):
+            opt_name = self.config.optimizer.upper()
+        else:
+            opt_name = self.optimizer.name.upper()
 
         # Enable differentiable activations for gradient-based training
-        if opt in ['sgd', 'adam', 'adamw'] and self.network.has_non_differentiable():
+        if self._is_gradient_optimizer and self.network.has_non_differentiable():
             self.network.use_differentiable_activations(True)
             self._using_approx = True
 
         if self.config.verbose:
             print(f"Stage 2: Weight Training")
-            print(f"Optimizer: {opt.upper()}")
+            print(f"Optimizer: {opt_name}")
             print(f"Parameters: {self.network.num_params()}")
             print(f"Learning rate: {self.config.learning_rate}")
             if self._using_approx:
@@ -550,13 +591,13 @@ class WeightTrainer:
         for epoch in range(epochs):
             self.key, step_key = jax.random.split(self.key)
 
-            # Update step
-            if opt == 'es':
-                new_weights, metrics = self._es_step(step_key)
-                fitness = metrics.get('max_fitness', metrics.get('mean_fitness'))
-            else:
+            # Perform update step using new optimizer system
+            if self._is_gradient_optimizer:
                 new_weights, metrics = self._gradient_step(step_key)
                 fitness = metrics.get('fitness', -metrics.get('loss', 0))
+            else:
+                new_weights, metrics = self._evolutionary_step(step_key)
+                fitness = metrics.get('max_fitness', metrics.get('mean_fitness', 0))
 
             self.network.set_params(new_weights)
 

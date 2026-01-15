@@ -1,7 +1,7 @@
 """
 WANN SDK Optimizers
 
-Unified optimizer interface supporting both gradient-based (JAXOpt)
+Unified optimizer interface supporting both gradient-based (Optax)
 and evolutionary (Nevergrad) optimization algorithms.
 
 Quick Start:
@@ -23,8 +23,9 @@ Available Optimizers:
         - SGD: Stochastic gradient descent with momentum
         - RMSProp: Root mean square propagation
         - AdaGrad: Adaptive gradient
+        - Lion: Evolved sign momentum optimizer
+        - Lamb: Layer-wise adaptive moments
         - LBFGS: Limited-memory BFGS (second-order)
-        - GradientDescent: Vanilla gradient descent
 
     Evolutionary (use with fitness/loss function):
         - ES: Built-in Evolution Strategies (no dependencies)
@@ -49,16 +50,18 @@ from .base import (
     OptimizerState,
 )
 
-# Gradient-based optimizers (JAXOpt-style)
-from .jaxopt_optimizers import (
+# Gradient-based optimizers (Optax)
+from .optax_optimizers import (
     Adam,
     AdamW,
     SGD,
     RMSProp,
     AdaGrad,
     LBFGS,
-    GradientDescent,
-    JAXOPT_OPTIMIZERS,
+    Lion,
+    Lamb,
+    Noisy,
+    OPTAX_OPTIMIZERS,
     list_gradient_optimizers,
 )
 
@@ -156,8 +159,8 @@ def _build_registry():
     global _REGISTRY
     _REGISTRY = {}
 
-    # Add gradient optimizers
-    for name, cls in JAXOPT_OPTIMIZERS.items():
+    # Add gradient optimizers (Optax)
+    for name, cls in OPTAX_OPTIMIZERS.items():
         _REGISTRY[name.lower()] = cls
 
     # Add built-in ES
@@ -317,14 +320,16 @@ __all__ = [
     "EvolutionaryOptimizer",
     "OptimizerState",
 
-    # Gradient optimizers
+    # Gradient optimizers (Optax)
     "Adam",
     "AdamW",
     "SGD",
     "RMSProp",
     "AdaGrad",
     "LBFGS",
-    "GradientDescent",
+    "Lion",
+    "Lamb",
+    "Noisy",
 
     # Built-in ES
     "ES",
