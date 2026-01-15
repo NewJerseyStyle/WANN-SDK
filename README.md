@@ -48,6 +48,8 @@ WANN SDK implements the standard Weight Agnostic Neural Network methodology:
 ### Installation
 
 ```bash
+pip install jax
+pip install git+https://github.com/EMI-Group/tensorneat.git
 pip install wann-sdk
 ```
 
