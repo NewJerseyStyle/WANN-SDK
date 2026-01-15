@@ -167,7 +167,7 @@ If you use this SDK in your research, we recommend you to cite both this reposit
 }
 ```
 
-### 📋 Zero-Cost Proxies
+### 📑 Zero-Cost Proxies
 
 ```
 @misc{mellor2021neuralarchitecturesearchtraining,
@@ -228,5 +228,26 @@ If you use this SDK in your research, we recommend you to cite both this reposit
       archivePrefix={arXiv},
       primaryClass={cs.LG},
       url={https://arxiv.org/abs/2002.07376}, 
+}
+```
+
+### 🔗 Optimizers
+```
+@article{jaxopt_implicit_diff,
+  title={Efficient and Modular Implicit Differentiation},
+  author={Blondel, Mathieu and Berthet, Quentin and Cuturi, Marco and Frostig, Roy 
+    and Hoyer, Stephan and Llinares-L{\'o}pez, Felipe and Pedregosa, Fabian 
+    and Vert, Jean-Philippe},
+  journal={arXiv preprint arXiv:2105.15183},
+  year={2021}
+}
+
+@misc{nevergrad,
+    author = {J. Rapin and O. Teytaud},
+    title = {{Nevergrad - A gradient-free optimization platform}},
+    year = {2018},
+    publisher = {GitHub},
+    journal = {GitHub repository},
+    howpublished = {\url{https://GitHub.com/FacebookResearch/Nevergrad}},
 }
 ```
