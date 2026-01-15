@@ -46,11 +46,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-brax = [
+gymnax = [
+    "gymnax",
+]
+rl = [
     "brax>=0.9.0",
+    "gymnax",
 ]
 tensorneat = [
     "tensorneat@git+https://github.com/EMI-Group/tensorneat.git",
+]
+ray = [
+    "ray",
 ]
 vision = [
     "tensorflow-datasets>=4.9.0",
@@ -61,6 +68,8 @@ full = [
     "tensorneat@git+https://github.com/EMI-Group/tensorneat.git",
     "tensorflow-datasets>=4.9.0",
     "tensorflow>=2.12.0",
+    "ray",
+    "gymnax",
 ]
 dev = [
     "pytest>=7.0.0",
