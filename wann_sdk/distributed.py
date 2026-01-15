@@ -390,7 +390,7 @@ class DistributedSearch(ArchitectureSearch):
         for gen in range(generations):
             # Distributed evaluation
             self.key, eval_key = jax.random.split(self.key)
-            base_seed = int(jax.random.randint(eval_key, (), 0, 2**31))
+            base_seed = int(jax.random.randint(eval_key, (), 0, 2**30))
 
             results = self._evaluate_population_distributed(self.population, base_seed)
 

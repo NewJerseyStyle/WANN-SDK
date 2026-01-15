@@ -3,6 +3,9 @@ Weight Trainer for WANN SDK (Stage 2)
 
 Trains individual weights on architectures found by ArchitectureSearch.
 Supports both Evolution Strategies and gradient-based optimizers (SGD, AdamW).
+
+For gradient-based training, non-differentiable activations (step, abs) are
+automatically replaced with smooth approximations to enable gradient flow.
 """
 
 import jax
@@ -17,6 +20,13 @@ import time
 
 from .problem import Problem
 from .search import NetworkGenome
+from .activation_approx import (
+    ApproximatorConfig,
+    create_activation_map_differentiable,
+    get_original_activation,
+    is_non_differentiable,
+    set_cache_dir,
+)
 
 
 class Optimizer(Enum):
@@ -46,6 +56,11 @@ class WeightTrainerConfig:
         beta1: Adam beta1 parameter
         beta2: Adam beta2 parameter
 
+        # Activation approximation (for gradient-based training)
+        approx_method: Method for approximating non-differentiable activations
+                      ('kan', 'mlp', 'smooth', None=auto)
+        approx_cache_dir: Directory for caching approximators (None=memory only)
+
         # General
         seed: Random seed
         verbose: Print progress
@@ -55,6 +70,7 @@ class WeightTrainerConfig:
         ...     optimizer='adamw',
         ...     learning_rate=0.001,
         ...     weight_decay=0.01,
+        ...     approx_method='kan',  # Use KAN for smooth gradients
         ... )
     """
     optimizer: str = 'es'
@@ -71,6 +87,10 @@ class WeightTrainerConfig:
     beta2: float = 0.999
     eps: float = 1e-8
 
+    # Activation approximation
+    approx_method: Optional[str] = 'kan'  # 'kan', 'mlp', 'smooth', None
+    approx_cache_dir: Optional[str] = None
+
     # General
     seed: int = 42
     verbose: bool = True
@@ -82,6 +102,9 @@ class TrainableNetwork:
 
     Converts genome topology to a differentiable network with
     individual trainable weights.
+
+    For gradient-based training, non-differentiable activations are replaced
+    with smooth approximations. Original activations are used for inference.
     """
 
     def __init__(
@@ -90,6 +113,7 @@ class TrainableNetwork:
         activation_options: List[str],
         init_weight: float = 1.0,
         key: Optional[jax.random.PRNGKey] = None,
+        approx_config: Optional[ApproximatorConfig] = None,
     ):
         """
         Initialize trainable network from genome.
@@ -99,12 +123,14 @@ class TrainableNetwork:
             activation_options: List of activation function names
             init_weight: Initial weight value (or 'random')
             key: Random key for random initialization
+            approx_config: Configuration for activation approximation
         """
         self.genome = genome
         self.activation_options = activation_options
+        self.approx_config = approx_config
 
-        # Build activation map
-        self._activations = {
+        # Build original activation map (for inference/ES)
+        self._activations_original = {
             'tanh': jnp.tanh,
             'relu': jax.nn.relu,
             'sigmoid': jax.nn.sigmoid,
@@ -116,6 +142,23 @@ class TrainableNetwork:
             'step': lambda x: jnp.where(x > 0, 1.0, 0.0),
             'gaussian': lambda x: jnp.exp(-x ** 2),
         }
+
+        # Build differentiable activation map (for gradient training)
+        # This replaces non-differentiable activations with approximations
+        if approx_config is not None:
+            self._activations_differentiable = create_activation_map_differentiable(
+                activation_options, approx_config
+            )
+            self._has_non_diff = any(
+                is_non_differentiable(act) for act in activation_options
+            )
+        else:
+            self._activations_differentiable = self._activations_original
+            self._has_non_diff = False
+
+        # Default to original activations
+        self._activations = self._activations_original
+        self._use_differentiable = False
 
         # Extract topology
         self.node_ids = genome.nodes[:, 0].astype(int)
@@ -150,6 +193,24 @@ class TrainableNetwork:
             if target not in self.incoming_connections:
                 self.incoming_connections[target] = []
             self.incoming_connections[target].append((source, i))
+
+    def use_differentiable_activations(self, enabled: bool = True):
+        """
+        Switch between differentiable and original activations.
+
+        Args:
+            enabled: If True, use differentiable approximations for training.
+                    If False, use original activations for inference.
+        """
+        self._use_differentiable = enabled
+        if enabled:
+            self._activations = self._activations_differentiable
+        else:
+            self._activations = self._activations_original
+
+    def has_non_differentiable(self) -> bool:
+        """Check if network contains non-differentiable activations."""
+        return self._has_non_diff
 
     def _get_activation(self, idx: int) -> Callable:
         """Get activation function by index."""
@@ -278,10 +339,25 @@ class WeightTrainer:
         self.genome = genome
         self.problem = problem
         self.config = config or WeightTrainerConfig()
+        self.activation_options = activation_options
 
         # Default activation options
         if activation_options is None:
             activation_options = ['tanh', 'relu', 'sigmoid', 'sin', 'abs', 'square']
+            self.activation_options = activation_options
+
+        # Set up activation approximation cache
+        if self.config.approx_cache_dir:
+            set_cache_dir(self.config.approx_cache_dir)
+
+        # Create approximator config for gradient-based optimizers
+        approx_config = None
+        if self.config.optimizer.lower() in ['sgd', 'adam', 'adamw']:
+            if self.config.approx_method:
+                approx_config = ApproximatorConfig(
+                    method=self.config.approx_method,
+                    cache_dir=self.config.approx_cache_dir,
+                )
 
         # Initialize random key
         self.key = jax.random.PRNGKey(self.config.seed)
@@ -293,6 +369,7 @@ class WeightTrainer:
             activation_options=activation_options,
             init_weight=1.0,
             key=init_key,
+            approx_config=approx_config,
         )
 
         # Initialize optimizer state
@@ -302,6 +379,7 @@ class WeightTrainer:
         self.best_fitness = -float('inf')
         self.best_weights: Optional[jnp.ndarray] = None
         self.history: List[Dict[str, float]] = []
+        self._using_approx = False
 
     def _init_optimizer(self):
         """Initialize optimizer state."""
@@ -453,11 +531,18 @@ class WeightTrainer:
         self.problem.setup()
         opt = self.config.optimizer.lower()
 
+        # Enable differentiable activations for gradient-based training
+        if opt in ['sgd', 'adam', 'adamw'] and self.network.has_non_differentiable():
+            self.network.use_differentiable_activations(True)
+            self._using_approx = True
+
         if self.config.verbose:
             print(f"Stage 2: Weight Training")
             print(f"Optimizer: {opt.upper()}")
             print(f"Parameters: {self.network.num_params()}")
             print(f"Learning rate: {self.config.learning_rate}")
+            if self._using_approx:
+                print(f"Activation approx: {self.config.approx_method} (for gradient flow)")
             print("-" * 60)
 
         start_time = time.time()
@@ -509,10 +594,16 @@ class WeightTrainer:
         if self.best_weights is not None:
             self.network.set_params(self.best_weights)
 
+        # Restore original activations for inference
+        if self._using_approx:
+            self.network.use_differentiable_activations(False)
+
         if self.config.verbose:
             print("-" * 60)
             print(f"Training completed in {time.time() - start_time:.1f}s")
             print(f"Best fitness: {self.best_fitness:.4f}")
+            if self._using_approx:
+                print(f"Restored original activations for inference")
 
         return {
             'best_fitness': self.best_fitness,

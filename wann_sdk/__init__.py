@@ -103,6 +103,29 @@ from .distributed import (
     wait_for_workers,
 )
 
+# === Activation Approximation ===
+from .activation_approx import (
+    ApproximatorConfig,
+    set_cache_dir as set_approx_cache_dir,
+    get_differentiable_activation,
+    is_non_differentiable,
+)
+
+# === Zero-Cost Proxies & Trainability ===
+from .zero_cost_proxies import (
+    ZCPEvaluator,
+    ZCPConfig,
+    compute_synflow,
+    compute_naswot,
+    compute_snip,
+    compute_trainability,
+)
+
+from .trainability_search import (
+    TrainabilityAwareSearch,
+    TrainabilitySearchConfig,
+)
+
 # === Deprecated: Old MLP-based API ===
 # Use ArchitectureSearch + WeightTrainer instead
 from .trainer import Trainer, TrainerConfig
@@ -164,6 +187,22 @@ __all__ = [
     "shutdown_ray",
     "get_cluster_info",
     "wait_for_workers",
+
+    # Activation Approximation
+    "ApproximatorConfig",
+    "set_approx_cache_dir",
+    "get_differentiable_activation",
+    "is_non_differentiable",
+
+    # Zero-Cost Proxies & Trainability
+    "ZCPEvaluator",
+    "ZCPConfig",
+    "compute_synflow",
+    "compute_naswot",
+    "compute_snip",
+    "compute_trainability",
+    "TrainabilityAwareSearch",
+    "TrainabilitySearchConfig",
 
     # Deprecated
     "Trainer",

@@ -115,7 +115,7 @@ export_to_pytorch(genome, trainer.get_weights(), 'wann_model.py')
 ```
 
 ## API Reference
-- [Detailed API reference](/APIs.md)
+- [Detailed API reference](docs/APIs.md)
 
 ## 📜 License
 

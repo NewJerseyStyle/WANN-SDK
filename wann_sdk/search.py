@@ -38,11 +38,22 @@ class SearchConfig:
         add_connection_rate: Probability of adding a connection
         change_activation_rate: Probability of changing activation
 
+        # Trainability-aware search options
+        use_trainability: Enable trainability-aware fitness evaluation
+        zcp_weight: Weight for zero-cost proxy fitness (0-1)
+        zcp_proxies: List of ZCP proxies to use
+
     Example:
         >>> config = SearchConfig(
         ...     pop_size=100,
         ...     max_nodes=20,
         ...     activation_options=['tanh', 'relu', 'sigmoid', 'sin'],
+        ... )
+        >>> # Trainability-aware search
+        >>> config = SearchConfig(
+        ...     use_trainability=True,
+        ...     zcp_weight=0.3,  # 30% ZCP, 70% WANN
+        ...     zcp_proxies=['synflow', 'naswot', 'trainability'],
         ... )
     """
     # Population
@@ -70,6 +81,15 @@ class SearchConfig:
     add_connection_rate: float = 0.05
     change_activation_rate: float = 0.1
     change_weight_rate: float = 0.0  # 0 for true WANN (shared weights)
+
+    # Trainability-aware search (Zero-Cost Proxies)
+    use_trainability: bool = False  # Enable trainability-aware fitness
+    zcp_weight: float = 0.3  # Weight for ZCP fitness (0-1)
+    zcp_proxies: List[str] = field(
+        default_factory=lambda: ['synflow', 'naswot', 'trainability']
+    )
+    zcp_strategy: str = 'hybrid'  # 'hybrid', 'sequential', 'parallel'
+    zcp_batch_size: int = 32  # Batch size for ZCP evaluation
 
     # Other
     seed: int = 42
