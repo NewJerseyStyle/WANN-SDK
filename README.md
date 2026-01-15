@@ -7,7 +7,9 @@
 
 **WANN SDK** is a high-performance framework for evolving Artificial Neural Networks with **Weight Agnostic Neural Networks (WANN)** method. Built on top of [TensorNEAT](https://github.com/EMI-Group/tensorneat), this toolkit provides a streamlined API for architecture search and weight optimization, leveraging JAX for massive parallelism.
 
-This project originated as a fork of a 2019 research collaboration with [Arthur](https://github.com/rlalpha), modernized to support modern hardware acceleration and the Brax physics engine. Also added weight optimization (however be aware that the topology found by WANN does not guarantee it is trainable, it can be insensitive to weight optimization as it is Weight Agnostic).
+This project originated as a fork of a 2019 research collaboration with [Arthur](https://github.com/rlalpha), modernized to support modern hardware acceleration and the Brax physics engine. Also added weight optimization.
+
+However be aware that the topology found by WANN does not guarantee it is trainable, it can be insensitive to weight optimization as it is Weight Agnostic. Therefore Zero-Cost Proxies (e.g. [SynFlow](https://arxiv.org/abs/2006.05467), [AZ-NAS](https://cvlab.yonsei.ac.kr/projects/AZNAS/)) for Network Architecture Search is introduced to evaluate the potential for weight optimization in the network architecture discovered by WANN.
 
 ## 🧠 What is WANN?
 
@@ -41,6 +43,7 @@ WANN SDK implements the standard Weight Agnostic Neural Network methodology:
 -   **TensorNEAT Integration:** Fully vectorized evolutionary operations.
 -   **JAX Accelerated:** Designed for speed on CPUs, GPUs, and TPUs.
 -   **Two-Stage Pipeline:** Decoupled architecture search and weight optimization.
+-   **Trainability-Aware Architecture Search:** Apply Zero-Cost Proxies for Network Architecture Search evaluate the room for weight optimization of the architecture.
 
 ## 🚀 Getting Started
 ### Installation
@@ -116,6 +119,7 @@ export_to_pytorch(genome, trainer.get_weights(), 'wann_model.py')
 
 ## API Reference
 - [Detailed API reference](docs/APIs.md)
+- [Detailed Zero-Cost Proxies reference](docs/trainability_aware_search.md)
 
 ## 📜 License
 
@@ -128,6 +132,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [TensorNEAT](https://github.com/EMI-Group/tensorneat) - NEAT algorithms in JAX
 - [Brax](https://github.com/google/brax) - Physics simulation in JAX
 - [Gymnax](https://github.com/RobertTLange/gymnax) - Classic RL environments in JAX
+- [GraSP](https://github.com/alecwangcq/GraSP) - Zero-Cost Proxy
 
 ## 📋 Citing WANN SDK, WANN, TensorNEAT
 If you use this SDK in your research, we recommend you to cite both this repository and the related works.
@@ -161,5 +166,69 @@ If you use this SDK in your research, we recommend you to cite both this reposit
   journal = {ACM Trans. Evol. Learn. Optim.},
   month = apr,
   keywords = {Neuroevolution, GPU Acceleration, Algorithm Library}
+}
+```
+
+### 📋 Zero-Cost Proxies
+
+```
+@misc{mellor2021neuralarchitecturesearchtraining,
+      title={Neural Architecture Search without Training}, 
+      author={Joseph Mellor and Jack Turner and Amos Storkey and Elliot J. Crowley},
+      year={2021},
+      eprint={2006.04647},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2006.04647}, 
+}
+
+@misc{tanaka2020pruningneuralnetworksdata,
+      title={Pruning neural networks without any data by iteratively conserving synaptic flow}, 
+      author={Hidenori Tanaka and Daniel Kunin and Daniel L. K. Yamins and Surya Ganguli},
+      year={2020},
+      eprint={2006.05467},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2006.05467}, 
+}
+
+@misc{lee2024aznasassemblingzerocostproxies,
+      title={AZ-NAS: Assembling Zero-Cost Proxies for Network Architecture Search}, 
+      author={Junghyup Lee and Bumsub Ham},
+      year={2024},
+      eprint={2403.19232},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2403.19232}, 
+}
+
+@misc{lee2019snipsingleshotnetworkpruning,
+      title={SNIP: Single-shot Network Pruning based on Connection Sensitivity}, 
+      author={Namhoon Lee and Thalaiyasingam Ajanthan and Philip H. S. Torr},
+      year={2019},
+      eprint={1810.02340},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/1810.02340}, 
+}
+
+@misc{turner2020blockswapfisherguidedblocksubstitution,
+      title={BlockSwap: Fisher-guided Block Substitution for Network Compression on a Budget}, 
+      author={Jack Turner and Elliot J. Crowley and Michael O'Boyle and Amos Storkey and Gavin Gray},
+      year={2020},
+      eprint={1906.04113},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/1906.04113}, 
+}
+
+@misc{wang2020pickingwinningticketstraining,
+      title={Picking Winning Tickets Before Training by Preserving Gradient Flow}, 
+      author={Chaoqi Wang and Guodong Zhang and Roger Grosse},
+      year={2020},
+      eprint={2002.07376},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2002.07376}, 
 }
 ```
