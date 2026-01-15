@@ -49,9 +49,7 @@ WANN SDK implements the standard Weight Agnostic Neural Network methodology:
 ### Installation
 
 ```bash
-pip install git+https://github.dev/NewJerseyStyle/WANN-SDK
-# not uploaded to pypi yet
-# pip install wann-sdk
+pip install wann-sdk
 ```
 
 ### Optional Dependencies
