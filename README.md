@@ -1,9 +1,8 @@
 # WANN SDK
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![JAX](https://img.shields.io/badge/backend-JAX-orange.svg)](https://github.com/google/jax)
-[![TensorNEAT](https://img.shields.io/badge/TensorNEAT-orange.svg)](https://github.com/EMI-Group/tensorneat)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://github.com/NewJerseyStyle/WANN-SDK/actions/workflows/test.yml/badge.svg)](https://github.com/NewJerseyStyle/WANN-SDK/actions/workflows/test.yml)
 
 **WANN SDK** is a high-performance framework for evolving Artificial Neural Networks with **Weight Agnostic Neural Networks (WANN)** method. Built on top of [TensorNEAT](https://github.com/EMI-Group/tensorneat), this toolkit provides a streamlined API for architecture search and weight optimization, leveraging JAX for massive parallelism.
 
