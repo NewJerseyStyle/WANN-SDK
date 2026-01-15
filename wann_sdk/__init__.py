@@ -42,7 +42,7 @@ Stage 2: Weight Training
     >>> export_to_pytorch(genome, trainer.get_weights(), 'model.py')
 """
 
-__version__ = "0.3.0"
+__version__ = "0.6.0"
 __author__ = "WANN SDK Contributors"
 
 # === Stage 1: Architecture Search ===
@@ -126,6 +126,33 @@ from .trainability_search import (
     TrainabilitySearchConfig,
 )
 
+# === Optimizers ===
+from .optimizers import (
+    # Base classes
+    BaseOptimizer,
+    OptimizerState,
+    # Gradient optimizers (Optax)
+    Adam,
+    AdamW,
+    SGD,
+    RMSProp,
+    AdaGrad,
+    LBFGS,
+    Lion,
+    Lamb,
+    # Evolutionary optimizers
+    ES,
+    CMA,
+    DE,
+    PSO,
+    NGOpt,
+    # Registry functions
+    list_optimizers,
+    get_optimizer,
+    register_optimizer,
+    create_optimizer,
+)
+
 # === Deprecated: Old MLP-based API ===
 # Use ArchitectureSearch + WeightTrainer instead
 from .trainer import Trainer, TrainerConfig
@@ -203,6 +230,25 @@ __all__ = [
     "compute_trainability",
     "TrainabilityAwareSearch",
     "TrainabilitySearchConfig",
+
+    # Optimizers
+    "BaseOptimizer",
+    "OptimizerState",
+    "Adam",
+    "AdamW",
+    "SGD",
+    "RMSProp",
+    "AdaGrad",
+    "LBFGS",
+    "ES",
+    "CMA",
+    "DE",
+    "PSO",
+    "NGOpt",
+    "list_optimizers",
+    "get_optimizer",
+    "register_optimizer",
+    "create_optimizer",
 
     # Deprecated
     "Trainer",
