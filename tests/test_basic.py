@@ -14,7 +14,7 @@ class TestImports:
         """Test main module import."""
         import wann_sdk
         assert hasattr(wann_sdk, "__version__")
-        assert wann_sdk.__version__ == "0.5.0"
+        assert wann_sdk.__version__ == "0.6.0"
 
     def test_import_stage1(self):
         """Test Stage 1 (Architecture Search) imports."""
