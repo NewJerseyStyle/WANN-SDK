@@ -254,7 +254,7 @@ class TestEvolutionaryOptimizers:
         key = jax.random.PRNGKey(0)
         candidates, ask_state = opt.ask(state, key)
 
-        assert candidates.shape[0] == 4  # population_size
+        assert candidates.shape[0] == 4 * 2  # population_size * pairs of mirrored perturbations
         assert candidates.shape[1] == 2  # param dim
 
         # Evaluate candidates
